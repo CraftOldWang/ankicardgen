@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="64" fill="#4F46E5" />
+
+  <!-- 卡片堆叠效果 -->
+  <rect x="128" y="128" width="280" height="320" rx="16" fill="#ffffff" transform="rotate(-5 128 128)" />
+  <rect x="144" y="112" width="280" height="320" rx="16" fill="#f3f4f6" transform="rotate(-2 144 112)" />
+  <rect x="160" y="96" width="280" height="320" rx="16" fill="#ffffff" />
+
+  <!-- 日语文字 -->
+  <text x="200" y="180" font-family="sans-serif" font-size="48" font-weight="bold" fill="#4F46E5">あ</text>
+  <text x="260" y="180" font-family="sans-serif" font-size="48" font-weight="bold" fill="#4F46E5">い</text>
+  <text x="320" y="180" font-family="sans-serif" font-size="48" font-weight="bold" fill="#4F46E5">う</text>
+
+  <!-- 分隔线 -->
+  <line x1="200" y1="200" x2="380" y2="200" stroke="#4F46E5" stroke-width="4" />
+
+  <!-- 中文解释 -->
+  <text x="200" y="240" font-family="sans-serif" font-size="24" fill="#1F2937">假名读音</text>
+  <text x="200" y="280" font-family="sans-serif" font-size="24" fill="#1F2937">中文意思</text>
+  <text x="200" y="320" font-family="sans-serif" font-size="24" fill="#1F2937">例句</text>
+
+  <!-- Anki标志 -->
+  <text x="200" y="380" font-family="sans-serif" font-size="32" font-weight="bold" fill="#4F46E5">Anki卡片生成器</text>
+</svg>

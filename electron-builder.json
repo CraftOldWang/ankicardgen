@@ -1,0 +1,29 @@
+{
+  "appId": "com.ankicardgen.app",
+  "productName": "Anki卡片生成器",
+  "directories": {
+    "output": "out"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "win": {
+    "target": [
+      "nsis"
+    ],
+    "icon": "public/icon.ico"
+  },
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "icon": "public/icon.icns"
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ],
+    "icon": "public/icon.png"
+  }
+}
