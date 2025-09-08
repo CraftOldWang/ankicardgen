@@ -7,6 +7,10 @@ export interface Card {
     meaning: string; // 中文意思
     sentence: string; // 原句
     explanation?: string; // 可选的额外解释
+    confirmed: boolean; // 是否已确认
+    isAIGenerated: boolean; // 是否AI生成
+    isProcessing?: boolean; // 是否正在处理中
+    failed?: boolean; // 是否处理失败
 }
 
 // 句子类型定义
@@ -15,6 +19,27 @@ export interface Sentence {
     text: string; // 句子文本
     processed: boolean; // 是否已处理
     keywords?: string[]; // 可选的关键词列表
+    cards: Card[]; // 该句子的卡片列表
+    confirmed: boolean; // 是否已确认（所有卡片都确认）
+    isProcessing: boolean; // 是否正在AI处理中
+    failed?: boolean; // 是否处理失败
+}
+
+// 文件数据类型定义
+export interface FileData {
+    filename: string;
+    filepath: string;
+    sentences: Sentence[];
+}
+
+// 应用状态类型
+export interface AppState {
+    currentPage: "home" | "settings" | "card-processor" | "card-review";
+    apiKey: string;
+    currentFile: FileData | null;
+    selectedSentenceId: string | null;
+    isCardReviewMode: boolean;
+    currentCardIndex: number;
 }
 
 // AI响应类型
