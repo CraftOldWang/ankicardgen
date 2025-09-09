@@ -92,7 +92,7 @@ const CardReviewPage: FC = () => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            alert("卡片已导出！");
+            // alert("卡片已导出！");
         } catch (error) {
             console.error("导出失败:", error);
             alert("导出失败，请重试");

@@ -8,6 +8,12 @@ import {
     FiX,
     FiChevronRight,
     FiChevronDown,
+    FiEdit,
+    FiSave,
+    FiDownload,
+    FiTrash2,
+    FiPause,
+    FiPlay,
 } from "react-icons/fi";
 import { useAppStore } from "../store/globalStore";
 
@@ -17,12 +23,18 @@ const CardProcessorPage: FC = () => {
         selectedSentenceId,
         setCurrentPage,
         setSelectedSentence,
+        updateSentenceText,
         retrySentenceProcessing,
         addManualCard,
         confirmCard,
         unconfirmCard,
         updateCard,
+        deleteCard,
         setCardReviewMode,
+        exportConfirmedCards,
+        pauseProcessing,
+        resumeProcessing,
+        isProcessingPaused,
     } = useAppStore();
 
     const [expandedSentences, setExpandedSentences] = useState<Set<string>>(
@@ -32,6 +44,9 @@ const CardProcessorPage: FC = () => {
     const [newCardWord, setNewCardWord] = useState("");
     const [selectedText, setSelectedText] = useState("");
     const [selectionModalOpen, setSelectionModalOpen] = useState(false);
+    // 编辑句子相关状态
+    const [isEditingSentence, setIsEditingSentence] = useState(false);
+    const [editingSentenceText, setEditingSentenceText] = useState("");
     // 添加状态用于跟踪鼠标位置，以便弹出框显示在选中文本附近
     const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
     // 添加引用用于追踪弹出框元素
@@ -242,25 +257,85 @@ const CardProcessorPage: FC = () => {
     // 批量确认当前句子下的所有卡片
     const confirmAllCardsInSentence = () => {
         if (!selectedSentenceId || !selectedSentence || !currentFile) return;
-        
+
         // 获取当前句子下所有未确认的卡片
-        const unconfirmedCards = selectedSentence.cards.filter(card => !card.confirmed);
-        
+        const unconfirmedCards = selectedSentence.cards.filter(
+            (card) => !card.confirmed
+        );
+
         // 确认所有卡片
-        unconfirmedCards.forEach(card => {
+        unconfirmedCards.forEach((card) => {
             confirmCard(card.id);
         });
 
         // 找到当前句子的索引
         const currentSentenceIndex = currentFile.sentences.findIndex(
-            s => s.id === selectedSentenceId
+            (s) => s.id === selectedSentenceId
         );
-        
+
         // 如果不是最后一个句子，跳转到下一个句子
         if (currentSentenceIndex < currentFile.sentences.length - 1) {
-            const nextSentence = currentFile.sentences[currentSentenceIndex + 1];
+            const nextSentence =
+                currentFile.sentences[currentSentenceIndex + 1];
             setSelectedSentence(nextSentence.id);
         }
+    };
+
+    // 开始编辑句子
+    const startEditingSentence = () => {
+        if (selectedSentence) {
+            setEditingSentenceText(selectedSentence.text);
+            setIsEditingSentence(true);
+        }
+    };
+
+    // 保存句子编辑
+    const saveSentenceEdit = () => {
+        if (selectedSentenceId && editingSentenceText.trim()) {
+            updateSentenceText(selectedSentenceId, editingSentenceText.trim());
+            setIsEditingSentence(false);
+            setEditingSentenceText("");
+        }
+    };
+
+    // 取消句子编辑
+    const cancelSentenceEdit = () => {
+        setIsEditingSentence(false);
+        setEditingSentenceText("");
+    };
+
+    // 导出已确认卡片
+    const handleExportConfirmedCards = () => {
+        try {
+            const markdownContent = exportConfirmedCards();
+            if (!markdownContent) {
+                alert("没有已确认的卡片可导出");
+                return;
+            }
+
+            // 创建下载链接
+            const blob = new Blob([markdownContent], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download =
+                `${currentFile?.filename.replace(".md", "")}_cards.md` ||
+                "anki_cards.md";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // alert("卡片已导出！");
+        } catch (error) {
+            console.error("导出失败:", error);
+            alert("导出失败，请重试");
+        }
+    };
+
+    // 删除卡片（带确认）
+    const handleDeleteCard = (cardId: string, cardWord: string) => {
+        deleteCard(cardId);
     };
 
     const getSentenceStatusIcon = (sentence: any) => {
@@ -413,7 +488,33 @@ const CardProcessorPage: FC = () => {
                 </div>
 
                 {/* 底部操作 */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                    {/* 队列控制按钮 */}
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={isProcessingPaused ? resumeProcessing : pauseProcessing}
+                            className={`flex-1 flex items-center justify-center py-2 px-3 rounded transition-colors ${
+                                isProcessingPaused
+                                    ? "bg-green-500 hover:bg-green-600 text-white"
+                                    : "bg-orange-500 hover:bg-orange-600 text-white"
+                            }`}
+                            title={isProcessingPaused ? "继续处理队列" : "暂停处理队列"}
+                        >
+                            {isProcessingPaused ? (
+                                <>
+                                    <FiPlay className="mr-1" size={14} />
+                                    继续
+                                </>
+                            ) : (
+                                <>
+                                    <FiPause className="mr-1" size={14} />
+                                    暂停
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    
+                    {/* 进入卡片确认模式按钮 */}
                     <button
                         onClick={() => setCardReviewMode(true)}
                         className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors"
@@ -447,15 +548,77 @@ const CardProcessorPage: FC = () => {
                     <div className="flex flex-col h-full overflow-hidden">
                         {/* 句子显示区 */}
                         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-                                当前句子
-                            </h3>
-                            <p
-                                className="text-gray-700 dark:text-gray-300 leading-relaxed cursor-text select-text"
-                                onMouseUp={(e) => handleTextSelection(e)}
-                            >
-                                {selectedSentence.text}
-                            </p>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                                    当前句子
+                                </h3>
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={startEditingSentence}
+                                        className="flex items-center px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
+                                        title="编辑句子"
+                                    >
+                                        <FiEdit className="mr-1" size={14} />
+                                        编辑
+                                    </button>
+                                    <button
+                                        onClick={() =>
+                                            retrySentenceProcessing(
+                                                selectedSentence.id
+                                            )
+                                        }
+                                        className="flex items-center px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
+                                        title="重新处理句子"
+                                    >
+                                        <FiRefreshCw
+                                            className="mr-1"
+                                            size={14}
+                                        />
+                                        重新处理
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isEditingSentence ? (
+                                <div className="space-y-3">
+                                    <textarea
+                                        value={editingSentenceText}
+                                        onChange={(e) =>
+                                            setEditingSentenceText(
+                                                e.target.value
+                                            )
+                                        }
+                                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[100px] resize-vertical"
+                                        placeholder="编辑句子内容"
+                                    />
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={saveSentenceEdit}
+                                            className="flex items-center px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                        >
+                                            <FiSave
+                                                className="mr-1"
+                                                size={14}
+                                            />
+                                            保存
+                                        </button>
+                                        <button
+                                            onClick={cancelSentenceEdit}
+                                            className="flex items-center px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                        >
+                                            <FiX className="mr-1" size={14} />
+                                            取消
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p
+                                    className="text-gray-700 dark:text-gray-300 leading-relaxed cursor-text select-text"
+                                    onMouseUp={(e) => handleTextSelection(e)}
+                                >
+                                    {selectedSentence.text}
+                                </p>
+                            )}
                         </div>
 
                         {/* 卡片列表 */}
@@ -465,6 +628,17 @@ const CardProcessorPage: FC = () => {
                                     卡片列表 ({selectedSentence.cards.length})
                                 </h3>
                                 <div className="flex space-x-2">
+                                    <button
+                                        onClick={handleExportConfirmedCards}
+                                        className="flex items-center px-3 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors"
+                                        title="导出已确认卡片"
+                                    >
+                                        <FiDownload
+                                            className="mr-1"
+                                            size={14}
+                                        />
+                                        导出
+                                    </button>
                                     <button
                                         onClick={confirmAllCardsInSentence}
                                         className="flex items-center px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -535,25 +709,44 @@ const CardProcessorPage: FC = () => {
                                                 <h4 className="font-semibold text-gray-800 dark:text-white">
                                                     {card.word}
                                                 </h4>
-                                                <button
-                                                    onClick={() =>
-                                                        card.confirmed
-                                                            ? unconfirmCard(card.id)
-                                                            : confirmCard(card.id)
-                                                    }
-                                                    className={`p-1 rounded ${
-                                                        card.confirmed
-                                                            ? "text-green-500 hover:text-green-600"
-                                                            : "text-gray-400 hover:text-gray-600"
-                                                    }`}
-                                                    title={
-                                                        card.confirmed
-                                                            ? "取消确认"
-                                                            : "确认卡片"
-                                                    }
-                                                >
-                                                    <FiCheck size={18} />
-                                                </button>
+                                                <div className="flex space-x-3">
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDeleteCard(
+                                                                card.id,
+                                                                card.word
+                                                            )
+                                                        }
+                                                        className="p-1 rounded text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        title="删除卡片"
+                                                    >
+                                                        <FiTrash2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            card.confirmed
+                                                                ? unconfirmCard(
+                                                                      card.id
+                                                                  )
+                                                                : confirmCard(
+                                                                      card.id
+                                                                  )
+                                                        }
+                                                        className={`p-1 rounded ${
+                                                            card.confirmed
+                                                                ? "text-green-500 hover:text-green-600"
+                                                                : "text-gray-400 hover:text-gray-600"
+                                                        }`}
+                                                        title={
+                                                            card.confirmed
+                                                                ? "取消确认"
+                                                                : "确认卡片"
+                                                        }
+                                                    >
+                                                        <FiCheck size={16} />
+                                                    </button>
+
+                                                </div>
                                             </div>
 
                                             {card.reading && (

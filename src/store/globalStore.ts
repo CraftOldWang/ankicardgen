@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { AppState, FileData, Sentence, Card } from "../types";
-import { generateCardForWord, generateCardsForSentence } from "../utils/aiProcessor";
+import {
+    generateCardForWord,
+    generateCardsForSentence,
+} from "../utils/aiProcessor";
 import { extractSentences } from "../utils/textProcessor";
 
 interface AppStore extends AppState {
@@ -16,6 +19,7 @@ interface AppStore extends AppState {
 
     // 句子管理
     setSelectedSentence: (sentenceId: string | null) => void;
+    updateSentenceText: (sentenceId: string, newText: string) => void;
     retrySentenceProcessing: (sentenceId: string) => Promise<void>;
 
     // 卡片管理
@@ -32,6 +36,11 @@ interface AppStore extends AppState {
     // 导出功能
     exportConfirmedCards: () => string;
 
+    // 队列控制
+    pauseProcessing: () => void;
+    resumeProcessing: () => void;
+    isProcessingPaused: boolean;
+
     // 内部方法
     _processSentenceWithAI: (sentenceId: string) => Promise<void>;
     _startProcessingQueue: () => Promise<void>;
@@ -46,6 +55,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     selectedSentenceId: null,
     isCardReviewMode: false,
     currentCardIndex: 0,
+    isProcessingPaused: false,
 
     // 页面导航
     setCurrentPage: (page) => set({ currentPage: page }),
@@ -102,6 +112,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // 句子管理
     setSelectedSentence: (sentenceId) =>
         set({ selectedSentenceId: sentenceId }),
+
+    updateSentenceText: (sentenceId, newText) => {
+        const { currentFile } = get();
+        if (!currentFile) return;
+
+        const updatedSentences = currentFile.sentences.map((sentence) =>
+            sentence.id === sentenceId
+                ? { ...sentence, text: newText.trim() }
+                : sentence
+        );
+
+        set({
+            currentFile: {
+                ...currentFile,
+                sentences: updatedSentences,
+            },
+        });
+    },
 
     retrySentenceProcessing: async (sentenceId) => {
         const { currentFile } = get();
@@ -268,13 +296,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
             .join("\n\n\n\n\n");
     },
 
+    // 队列控制
+    pauseProcessing: () => {
+        const currentState = get();
+        console.log("🔴 队列处理已暂停 - 当前状态:", {
+            isProcessingPaused: currentState.isProcessingPaused,
+            willBe: true,
+        });
+        set({ isProcessingPaused: true });
+    },
+
+    resumeProcessing: () => {
+        const currentState = get();
+        console.log("🟢 队列处理已继续 - 当前状态:", {
+            isProcessingPaused: currentState.isProcessingPaused,
+            willBe: false,
+        });
+        set({ isProcessingPaused: false });
+    },
+
     // 内部方法
     _processSentenceWithAI: async (sentenceId) => {
-        let apiKey = "AIzaSyA7f8cWd7uUW4vAO4Uh5ijndFvcQgSCZjw"
+        let apiKey = "AIzaSyA7f8cWd7uUW4vAO4Uh5ijndFvcQgSCZjw";
         const { currentFile } = get();
         console.log("API密钥:", apiKey ? "已设置" : "未设置");
         console.log("当前文件:", currentFile ? "已加载" : "未加载");
-        
 
         if (!currentFile || !apiKey) {
             console.error("缺少必要数据:", {
@@ -292,7 +338,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
         try {
             console.log("开始制卡");
-            const aiCards = await generateCardsForSentence(sentence.text, apiKey);
+            const aiCards = await generateCardsForSentence(
+                sentence.text,
+                apiKey
+            );
             console.log("AI返回的卡片:", aiCards);
             const cardsWithMeta: Card[] = aiCards.map((card, index) => ({
                 ...card,
@@ -322,6 +371,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
             get()._updateSentenceConfirmedStatus(sentenceId);
         } catch (error) {
             console.error(`处理句子 ${sentenceId} 时出错:`, error);
+
+            // 检查是否是API配额限制错误
+            if (error instanceof Error && error.message.includes("429")) {
+                console.log("🚫 检测到API配额限制，自动暂停队列处理");
+                get().pauseProcessing();
+            }
 
             const updatedSentences = currentFile.sentences.map((s) =>
                 s.id === sentenceId
@@ -363,7 +418,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // 🚀 任务队列处理方法（顺序处理，避免并发）
     _startProcessingQueue: async () => {
         const { currentFile } = get();
-        if (!currentFile  ) {
+        if (!currentFile) {
             console.error("❌ 无法启动任务队列：缺少文件或API密钥");
             return;
         }
@@ -373,9 +428,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
         // 🔄 逐个处理句子（任务队列，避免并发）
         for (let i = 0; i < currentFile.sentences.length; i++) {
-            const sentence = currentFile.sentences[i];
+            // 检查是否暂停 - 更严格的暂停检查
+            while (get().isProcessingPaused) {
+                console.log("⏸️ 队列处理已暂停，等待继续...");
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                // 重新获取当前状态，防止状态过期
+                const currentState = get();
+                if (!currentState.currentFile) {
+                    console.log("❌ 文件已被清除，停止队列处理");
+                    return;
+                }
+            }
+
+            // 重新获取当前文件状态，因为可能在暂停期间发生变化
+            const updatedState = get();
+            if (
+                !updatedState.currentFile ||
+                i >= updatedState.currentFile.sentences.length
+            ) {
+                console.log("❌ 文件状态已变化，停止队列处理");
+                return;
+            }
+
+            const sentence = updatedState.currentFile.sentences[i];
             console.log(
-                `📋 队列进度: ${i + 1}/${currentFile.sentences.length}`
+                `📋 队列进度: ${i + 1}/${
+                    updatedState.currentFile.sentences.length
+                }`
             );
             console.log(`🎯 处理句子: "${sentence.text.substring(0, 30)}..."`);
 
@@ -383,14 +462,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
                 await get()._processSentenceWithAI(sentence.id);
                 console.log(`✅ 句子 ${i + 1} 处理完成`);
 
-                // 添加延迟避免API限流（除了最后一个句子）
-                if (i < currentFile.sentences.length - 1) {
+                // 在延迟期间也检查暂停状态
+                if (i < updatedState.currentFile.sentences.length - 1) {
                     console.log("⏱️ 等待2秒避免API限流...");
-                    await new Promise((resolve) => setTimeout(resolve, 2000));
+                    for (let delay = 0; delay < 2000; delay += 500) {
+                        if (get().isProcessingPaused) {
+                            console.log("⏸️ 在延迟期间检测到暂停");
+                            break;
+                        }
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 500)
+                        );
+                    }
                 }
             } catch (error) {
                 console.error(`❌ 队列处理失败，句子 ${i + 1}:`, error);
-                // 即使失败也继续处理下一个句子
+
+                // 检查是否是API配额限制错误
+                if (error instanceof Error && error.message.includes("429")) {
+                    console.log("🚫 检测到API配额限制，暂停队列处理");
+                    get().pauseProcessing();
+                    console.log(
+                        "💡 建议：等待24小时后配额重置，或升级到付费计划"
+                    );
+                    break; // 停止处理更多句子
+                }
+
+                // 即使失败也继续处理下一个句子（除非是配额限制）
                 console.log("🔄 继续处理下一个句子...");
             }
         }
