@@ -5,6 +5,12 @@ import { v4 as uuidv4 } from "uuid";
 // 这里应该从环境变量或配置文件中获取API密钥
 // 在实际应用中，应该使用安全的方式存储和获取API密钥
 let API_KEY = "AIzaSyA7f8cWd7uUW4vAO4Uh5ijndFvcQgSCZjw";
+let MODELNAME = "gemini-2.5-flash-lite"
+// 候选的
+// gemini-2.5-flash-lite
+// gemini-2.5-flash
+// gemini-2.5-pro
+
 
 /**
  * 设置API密钥
@@ -22,7 +28,7 @@ const SYSTEM_PROMPT = `
 请根据提供的日语句子，生成Anki卡片内容。
 
 对于每个句子，请提取重要的单词或短语，并为每个单词/短语创建一个卡片，包含以下信息：
-1. 单词/短语（原形）
+1. 单词/短语（如果原句中的单词并非原形，你应该还原成原型并在额外解释中，除了你想补充的，额外说明这点）
 2. 假名读音
 3. 中文意思（简洁准确的翻译）
 4. 原句（作为例句）
@@ -151,7 +157,7 @@ export async function generateCardForWord(
 上下文句子：${context}
 
 请生成包含以下信息的卡片：
-1. 单词/短语（原形）
+1. 单词/短语（如果原句中的单词并非原形，你应该还原成原型并在额外解释中，除了你想补充的，额外说明这点）
 2. 假名读音
 3. 中文意思
 4. 原句作为例句
@@ -163,7 +169,7 @@ export async function generateCardForWord(
         console.log("⏳ 正在为单词生成卡片，请稍候...");
 
         const result = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: MODELNAME,
             contents: [
                 {
                     role: "user",

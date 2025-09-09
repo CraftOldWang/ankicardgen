@@ -19,6 +19,7 @@ const CardReviewPage: FC = () => {
         goToNextUnconfirmedCard,
         currentCardIndex,
         exportConfirmedCards,
+        clearCurrentFile,
     } = useAppStore();
 
     const [isEditing, setIsEditing] = useState(false);
@@ -41,6 +42,7 @@ const CardReviewPage: FC = () => {
 
     const handleExitReview = () => {
         setCardReviewMode(false);
+        // 不要在这里清理文件，因为用户可能想回到卡片处理页面继续编辑
     };
 
     const handleConfirmCard = () => {
@@ -109,12 +111,9 @@ const CardReviewPage: FC = () => {
 
     if (unconfirmedCards.length === 0) {
         return (
-
-
             // <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
 
             <div className="flex-1 flex items-center justify-center">
-
                 <div className="text-center">
                     <div className="mb-6">
                         <FiCheck className="mx-auto text-6xl text-green-500 mb-4" />
@@ -148,7 +147,6 @@ const CardReviewPage: FC = () => {
     return (
         // <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
         <div className="flex flex-col flex-1">
-
             {/* 头部导航 */}
             <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center justify-between">
