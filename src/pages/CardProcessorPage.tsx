@@ -16,6 +16,7 @@ import {
     FiPlay,
 } from "react-icons/fi";
 import { useAppStore } from "../store/globalStore";
+import { Card } from "../types";
 
 const CardProcessorPage: FC = () => {
     const {
@@ -35,6 +36,7 @@ const CardProcessorPage: FC = () => {
         pauseProcessing,
         resumeProcessing,
         isProcessingPaused,
+        clearCurrentFile,
     } = useAppStore();
 
     const [expandedSentences, setExpandedSentences] = useState<Set<string>>(
@@ -51,6 +53,10 @@ const CardProcessorPage: FC = () => {
     const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
     // 添加引用用于追踪弹出框元素
     const popupRef = useRef<HTMLDivElement>(null);
+
+    // 卡片编辑相关状态
+    const [isEditingCard, setIsEditingCard] = useState(false);
+    const [editingCard, setEditingCard] = useState<Card | null>(null);
 
     // 侧边栏宽度调整相关状态
     const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -125,6 +131,7 @@ const CardProcessorPage: FC = () => {
     );
 
     const handleBackToHome = () => {
+        clearCurrentFile();
         setCurrentPage("home");
     };
 
@@ -229,9 +236,14 @@ const CardProcessorPage: FC = () => {
     }, []);
 
     const handleCreateCardForSelection = async () => {
-        if (!selectedSentenceId || !selectedText) return;
+        console.log("点击了为单词创建卡片");
+        if (!selectedSentenceId || !selectedText) {
+            console.log("没找到句子ID或者想创建卡片的文本， 句子ID", selectedSentenceId, "文本", selectedText);
+            return;
+        }
 
         try {
+            console.log("句子ID", selectedSentenceId,"文本",selectedText )
             await addManualCard(selectedSentenceId, selectedText);
             setSelectionModalOpen(false);
             setSelectedText("");
@@ -326,7 +338,7 @@ const CardProcessorPage: FC = () => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            // alert("卡片已导出！");
+            alert("卡片已导出！");
         } catch (error) {
             console.error("导出失败:", error);
             alert("导出失败，请重试");
@@ -334,8 +346,29 @@ const CardProcessorPage: FC = () => {
     };
 
     // 删除卡片（带确认）
-    const handleDeleteCard = (cardId: string, cardWord: string) => {
+    const handleDeleteCard = (cardId: string) => {
         deleteCard(cardId);
+    };
+
+    // 开始编辑卡片
+    const startEditingCard = (card: Card) => {
+        setEditingCard({ ...card });
+        setIsEditingCard(true);
+    };
+
+    // 保存编辑后的卡片
+    const saveCardEdit = () => {
+        if (!editingCard) return;
+
+        updateCard(editingCard.id, editingCard);
+        setIsEditingCard(false);
+        setEditingCard(null);
+    };
+
+    // 取消卡片编辑
+    const cancelCardEdit = () => {
+        setIsEditingCard(false);
+        setEditingCard(null);
     };
 
     const getSentenceStatusIcon = (sentence: any) => {
@@ -492,13 +525,21 @@ const CardProcessorPage: FC = () => {
                     {/* 队列控制按钮 */}
                     <div className="flex space-x-2">
                         <button
-                            onClick={isProcessingPaused ? resumeProcessing : pauseProcessing}
+                            onClick={
+                                isProcessingPaused
+                                    ? resumeProcessing
+                                    : pauseProcessing
+                            }
                             className={`flex-1 flex items-center justify-center py-2 px-3 rounded transition-colors ${
                                 isProcessingPaused
                                     ? "bg-green-500 hover:bg-green-600 text-white"
                                     : "bg-orange-500 hover:bg-orange-600 text-white"
                             }`}
-                            title={isProcessingPaused ? "继续处理队列" : "暂停处理队列"}
+                            title={
+                                isProcessingPaused
+                                    ? "继续处理队列"
+                                    : "暂停处理队列"
+                            }
                         >
                             {isProcessingPaused ? (
                                 <>
@@ -513,7 +554,7 @@ const CardProcessorPage: FC = () => {
                             )}
                         </button>
                     </div>
-                    
+
                     {/* 进入卡片确认模式按钮 */}
                     <button
                         onClick={() => setCardReviewMode(true)}
@@ -699,11 +740,14 @@ const CardProcessorPage: FC = () => {
                                     {selectedSentence.cards.map((card) => (
                                         <div
                                             key={card.id}
-                                            className={`p-4 border-2 rounded-lg transition-colors ${
+                                            className={`p-4 border-2 rounded-lg transition-colors cursor-pointer ${
                                                 card.confirmed
                                                     ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                                                     : "border-gray-200 dark:border-gray-600"
                                             }`}
+                                            onClick={() =>
+                                                startEditingCard(card)
+                                            }
                                         >
                                             <div className="flex items-start justify-between mb-2">
                                                 <h4 className="font-semibold text-gray-800 dark:text-white">
@@ -711,27 +755,28 @@ const CardProcessorPage: FC = () => {
                                                 </h4>
                                                 <div className="flex space-x-3">
                                                     <button
-                                                        onClick={() =>
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             handleDeleteCard(
-                                                                card.id,
-                                                                card.word
-                                                            )
-                                                        }
+                                                                card.id
+                                                            );
+                                                        }}
                                                         className="p-1 rounded text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                         title="删除卡片"
                                                     >
                                                         <FiTrash2 size={16} />
                                                     </button>
                                                     <button
-                                                        onClick={() =>
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             card.confirmed
                                                                 ? unconfirmCard(
                                                                       card.id
                                                                   )
                                                                 : confirmCard(
                                                                       card.id
-                                                                  )
-                                                        }
+                                                                  );
+                                                        }}
                                                         className={`p-1 rounded ${
                                                             card.confirmed
                                                                 ? "text-green-500 hover:text-green-600"
@@ -745,7 +790,6 @@ const CardProcessorPage: FC = () => {
                                                     >
                                                         <FiCheck size={16} />
                                                     </button>
-
                                                 </div>
                                             </div>
 
@@ -858,6 +902,136 @@ const CardProcessorPage: FC = () => {
                                 }}
                                 className="flex-1 bg-gray-500 text-white py-1.5 px-3 text-sm rounded hover:bg-gray-600"
                             >
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 卡片编辑模态框 */}
+            {isEditingCard && editingCard && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                            编辑卡片
+                        </h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    单词/短语
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editingCard.word}
+                                    onChange={(e) =>
+                                        setEditingCard({
+                                            ...editingCard,
+                                            word: e.target.value,
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    id="edit-card-word"
+                                    placeholder="输入单词或短语"
+                                    aria-label="单词或短语"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    读音
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editingCard.reading}
+                                    onChange={(e) =>
+                                        setEditingCard({
+                                            ...editingCard,
+                                            reading: e.target.value,
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    id="edit-card-reading"
+                                    placeholder="输入读音"
+                                    aria-label="读音"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    意思
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editingCard.meaning}
+                                    onChange={(e) =>
+                                        setEditingCard({
+                                            ...editingCard,
+                                            meaning: e.target.value,
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    id="edit-card-meaning"
+                                    placeholder="输入中文意思"
+                                    aria-label="中文意思"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    例句
+                                </label>
+                                <textarea
+                                    value={editingCard.sentence}
+                                    onChange={(e) =>
+                                        setEditingCard({
+                                            ...editingCard,
+                                            sentence: e.target.value,
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24 resize-none"
+                                    id="edit-card-sentence"
+                                    placeholder="输入例句"
+                                    aria-label="例句"
+                                    rows={2}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    补充说明 (可选)
+                                </label>
+                                <textarea
+                                    value={editingCard.explanation || ""}
+                                    onChange={(e) =>
+                                        setEditingCard({
+                                            ...editingCard,
+                                            explanation: e.target.value,
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24 resize-none"
+                                    id="edit-card-explanation"
+                                    placeholder="输入补充说明（可选）"
+                                    aria-label="补充说明"
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex space-x-3 mt-6">
+                            <button
+                                onClick={saveCardEdit}
+                                className="flex-1 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
+                            >
+                                <FiSave className="mr-2" size={16} />
+                                保存
+                            </button>
+                            <button
+                                onClick={cancelCardEdit}
+                                className="flex-1 bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition-colors flex items-center justify-center"
+                            >
+                                <FiX className="mr-2" size={16} />
                                 取消
                             </button>
                         </div>
